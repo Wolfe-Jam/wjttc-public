@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:brake": "jest tests/brake --maxWorkers=4 --no-coverage",
+    "test:engine": "jest tests/engine --maxWorkers=4",
+    "test:aero": "jest tests/aero",
+    "test:wjttc": "jest && echo '\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n🏆 WJTTC CERTIFICATION: PASSED\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\nStandard: Rocket Science Grade 🚀\\nStatus: Championship Ready\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n'",
+    "build": "npm run typecheck && npm run test:wjttc && tsc",
+    "verify": "npm run typecheck && npm run test && npm run build"
+  }
+}

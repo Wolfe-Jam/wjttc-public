@@ -1,0 +1,177 @@
+# WJTTC MCP Certification - GitHub Action
+# WolfeJam Technical & Testing Center
+# "When brakes must work flawlessly, so must our MCP servers"
+
+name: 'WJTTC MCP Certification'
+description: 'Championship-grade validation for MCP servers. 7-tier certification system based on MCP Specification 2025-11-25.'
+author: 'wolfejam'
+
+branding:
+  icon: 'award'
+  color: 'orange'
+
+inputs:
+  # Required
+  mcp-path:
+    description: 'Path to MCP server entry point (e.g., ./dist/index.js or ./src/server.ts)'
+    required: true
+
+  # Certification Level
+  tier:
+    description: 'Minimum certification tier required (rookie|qualified|bronze|silver|gold|championship)'
+    required: false
+    default: 'bronze'
+
+  # Badge Options
+  badge:
+    description: 'Generate certification badge (true|false)'
+    required: false
+    default: 'true'
+
+  badge-path:
+    description: 'Path to save badge JSON (for shields.io endpoint)'
+    required: false
+    default: '.github/wjttc-badge.json'
+
+  # Test Selection
+  tiers:
+    description: 'Comma-separated list of tiers to run (1,2,3,4,5,6,7 or all)'
+    required: false
+    default: 'all'
+
+  # Reporting
+  report-format:
+    description: 'Output format (json|markdown|summary)'
+    required: false
+    default: 'summary'
+
+  report-path:
+    description: 'Path to save detailed report'
+    required: false
+    default: '.github/wjttc-report.md'
+
+  # Strict Mode
+  fail-on-warning:
+    description: 'Fail if any SHOULD requirements are not met'
+    required: false
+    default: 'false'
+
+  # Performance Thresholds (override defaults)
+  perf-tool-list-ms:
+    description: 'Max milliseconds for tool listing (default: 50)'
+    required: false
+    default: '50'
+
+  perf-tool-call-ms:
+    description: 'Max milliseconds for tool invocation (default: 100)'
+    required: false
+    default: '100'
+
+outputs:
+  score:
+    description: 'Overall certification score (0-100 max, Big Orange is a BADGE awarded separately)'
+
+  tier:
+    description: 'Achieved certification tier (rookie|qualified|bronze|silver|gold|championship|big-orange)'
+
+  tier-emoji:
+    description: 'Tier emoji for display'
+
+  passed:
+    description: 'Whether minimum tier requirement was met (true|false)'
+
+  tests-total:
+    description: 'Total number of tests run'
+
+  tests-passed:
+    description: 'Number of tests passed'
+
+  tests-failed:
+    description: 'Number of tests failed'
+
+  report-url:
+    description: 'URL to detailed report (if uploaded)'
+
+  badge-url:
+    description: 'URL for shields.io badge'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install WJTTC
+      shell: bash
+      run: npm install -g wjttc-mcp
+
+    - name: Run Certification Suite
+      id: certify
+      shell: bash
+      run: |
+        wjttc certify \
+          --mcp "${{ inputs.mcp-path }}" \
+          --tiers "${{ inputs.tiers }}" \
+          --min-tier "${{ inputs.tier }}" \
+          --format "${{ inputs.report-format }}" \
+          --output "${{ inputs.report-path }}" \
+          --perf-tool-list "${{ inputs.perf-tool-list-ms }}" \
+          --perf-tool-call "${{ inputs.perf-tool-call-ms }}" \
+          ${{ inputs.fail-on-warning == 'true' && '--strict' || '' }} \
+          --github-output
+
+    - name: Generate Badge
+      if: inputs.badge == 'true'
+      shell: bash
+      run: |
+        wjttc badge \
+          --score "${{ steps.certify.outputs.score }}" \
+          --tier "${{ steps.certify.outputs.tier }}" \
+          --output "${{ inputs.badge-path }}"
+
+    - name: Upload Report Artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: wjttc-certification-report
+        path: ${{ inputs.report-path }}
+
+    - name: Post PR Comment
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const score = '${{ steps.certify.outputs.score }}';
+          const tier = '${{ steps.certify.outputs.tier }}';
+          const emoji = '${{ steps.certify.outputs.tier-emoji }}';
+          const passed = '${{ steps.certify.outputs.passed }}' === 'true';
+          const total = '${{ steps.certify.outputs.tests-total }}';
+          const passedTests = '${{ steps.certify.outputs.tests-passed }}';
+
+          const body = `## ${emoji} WJTTC MCP Certification
+
+          | Metric | Value |
+          |--------|-------|
+          | **Score** | ${score}/100 |
+          | **Tier** | ${tier} ${emoji} |
+          | **Tests** | ${passedTests}/${total} passed |
+          | **Status** | ${passed ? '✅ CERTIFIED' : '❌ NOT CERTIFIED'} |
+
+          <details>
+          <summary>View Full Report</summary>
+
+          See artifact: \`wjttc-certification-report\`
+          </details>
+
+          ---
+          *WJTTC - "When brakes must work flawlessly, so must our MCP servers"*
+          `;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          });
