@@ -151,3 +151,9 @@ stats:
   best_auto_time: 0.2
   last_auto_time: 0.2
   times_run: 1
+
+# About Repo declaration — non-app, displays source's score
+app_type: about
+about:
+  represents: Wolfe-Jam/wjttc
+  source_score: 100
